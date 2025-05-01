@@ -30,16 +30,20 @@ export type FeedbackEntry = {
 // Function to ensure conversation history is valid before saving
 export function validateConversation(conversation: ConversationTurn[]): boolean {
   if (!Array.isArray(conversation) || conversation.length === 0) {
+    console.log('Validation failed: conversation is not an array or is empty');
     return false;
   }
   
   // Check if at least one turn has a valid question and answer
-  return conversation.some(turn => 
+  const validTurns = conversation.filter(turn => 
     typeof turn.question === 'string' && 
     turn.question.trim() !== '' && 
     typeof turn.answer === 'string' && 
     turn.answer.trim() !== ''
   );
+  
+  console.log(`Validation result: ${validTurns.length} valid turns out of ${conversation.length} total`);
+  return validTurns.length > 0;
 }
 
 // Function to save feedback to Supabase with retry logic
