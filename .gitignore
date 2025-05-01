@@ -1,0 +1,34 @@
+# Node modules
+node_modules/
+
+# Build output
+.next/
+out/
+
+# Production environment variables
+.env.local
+.env.production
+.env.development
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Optional: Vercel deployment
+.vercel/
+
+# Optional: Next.js cache
+.next/cache/
+
+# Editor-specific
+.vscode/
+.idea/
+
+# TypeScript types (if using TypeScript)
+*.tsbuildinfo
