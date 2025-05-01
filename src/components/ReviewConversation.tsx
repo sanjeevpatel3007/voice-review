@@ -6,13 +6,9 @@ import { useSpeechToText } from '@/hooks/useSpeechToText';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { useReviewAI } from '@/hooks/useReviewAI';
+import { saveFeedback, generateProfessionalFeedback, validateConversation, ConversationTurn } from '@/lib/supabase';
 
-type ConversationState = 'email-form' | 'conversation' | 'summarizing' | 'complete';
-
-type ConversationTurn = {
-  question: string;
-  answer: string;
-};
+type ConversationState = 'email-form' | 'conversation' | 'summarizing' | 'complete' | 'saving';
 
 export default function ReviewConversation() {
   const [email, setEmail] = useState('');
@@ -25,6 +21,8 @@ export default function ReviewConversation() {
   const [conversationState, setConversationState] = useState<ConversationState>('email-form');
   const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([]);
   const [reviewSummary, setReviewSummary] = useState('');
+  const [professionalFeedback, setProfessionalFeedback] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [voiceType, setVoiceType] = useState<'male' | 'female'>('female');
   
   const { 
@@ -83,7 +81,7 @@ export default function ReviewConversation() {
   async function startConversation() {
     try {
       // Greet the user with their email
-      const welcomeMessage = `Thank you, ${email}. I'll be asking you a few questions about your experience with the cohort. Let's begin.`;
+      const welcomeMessage = `Thank you, ${email}. I'll be asking you a few questions about your experience with the cohort. You can answer as many questions as you'd like and end the conversation when you're ready. Let's begin.`;
       setBotText(welcomeMessage);
       await speakText(welcomeMessage, voiceType);
       
@@ -117,35 +115,95 @@ export default function ReviewConversation() {
           currentQuestion.answer = transcribedText;
           setConversationHistory(updatedHistory);
           
-          // Check if we should end the conversation (after ~5 questions)
-          if (updatedHistory.length >= 5) {
-            const finishingMsg = "Thank you for your responses. I'm going to summarize our conversation now.";
-            setBotText(finishingMsg);
-            await speakText(finishingMsg, voiceType);
-            setConversationState('summarizing');
-            
-            // Generate summary
-            const summary = await generateSummary(updatedHistory);
-            setReviewSummary(summary);
-            setBotText(summary);
-            await speakText(summary, voiceType);
-            setConversationState('complete');
-          } else {
-            // Get the next question based on the conversation so far
-            const nextQuestion = await generateNextQuestion(updatedHistory);
-            setBotText(nextQuestion);
-            await speakText(nextQuestion, voiceType);
-            
-            // Add the new question to history
-            updatedHistory.push({ question: nextQuestion, answer: '' });
-            setConversationHistory(updatedHistory);
-          }
+          // Get the next question based on the conversation so far
+          const nextQuestion = await generateNextQuestion(updatedHistory);
+          setBotText(nextQuestion);
+          await speakText(nextQuestion, voiceType);
+          
+          // Add the new question to history
+          updatedHistory.push({ question: nextQuestion, answer: '' });
+          setConversationHistory(updatedHistory);
         }
       }
     } catch (error) {
       console.error('Error processing audio:', error);
     } finally {
       setIsProcessing(false);
+    }
+  }
+
+  async function handleEndConversation() {
+    if (conversationState !== 'conversation' || conversationHistory.length < 1) {
+      return;
+    }
+    
+    try {
+      // Remove the last question if it doesn't have an answer
+      const updatedHistory = [...conversationHistory];
+      if (updatedHistory[updatedHistory.length - 1].answer === '') {
+        updatedHistory.pop();
+        setConversationHistory(updatedHistory);
+      }
+      
+      // Check if there's enough conversation content to proceed
+      if (!validateConversation(updatedHistory)) {
+        setBotText("I need more of your input before I can generate a summary. Please answer at least one question.");
+        await speakText("I need more of your input before I can generate a summary. Please answer at least one question.", voiceType);
+        return;
+      }
+      
+      const finishingMsg = "Thank you for your responses. I'll prepare your review summary now. Please wait a moment.";
+      setBotText(finishingMsg);
+      await speakText(finishingMsg, voiceType);
+      setConversationState('summarizing');
+      
+      // Generate summary
+      const summary = await generateSummary(updatedHistory);
+      setReviewSummary(summary);
+      
+      // Generate professional feedback
+      setConversationState('saving');
+      const proFeedback = await generateProfessionalFeedback(summary);
+      setProfessionalFeedback(proFeedback);
+      
+      // Save to Supabase
+      setSaveStatus('saving');
+      
+      // Prepare the feedback data with conversation history
+      const feedbackData = {
+        email: email,
+        summary: summary,
+        professional_feedback: proFeedback,
+        conversation_history: updatedHistory
+      };
+
+      try {
+        const result = await saveFeedback(feedbackData);
+        
+        if (result.success) {
+          setSaveStatus('success');
+          
+          // Speak only a confirmation message, not the summary
+          const successMsg = "Your feedback has been successfully saved. You can now review the summary on screen.";
+          setBotText(successMsg);
+          await speakText(successMsg, voiceType);
+        } else {
+          throw new Error('Failed to save feedback');
+        }
+      } catch (saveError) {
+        console.error('Error saving to Supabase:', saveError);
+        setSaveStatus('error');
+        
+        const errorMsg = "There was an issue saving your feedback, but you can still view the summary.";
+        setBotText(errorMsg);
+        await speakText(errorMsg, voiceType);
+      }
+      
+      setConversationState('complete');
+    } catch (error) {
+      console.error('Error ending conversation:', error);
+      setSaveStatus('error');
+      setConversationState('complete');
     }
   }
 
@@ -166,6 +224,8 @@ export default function ReviewConversation() {
     setEmail('');
     setEmailInput('');
     setReviewSummary('');
+    setProfessionalFeedback('');
+    setSaveStatus('idle');
     setUserText('');
     setBotText('');
   }
@@ -216,11 +276,36 @@ export default function ReviewConversation() {
             </button>
           </form>
         </div>
+      ) : conversationState === 'saving' ? (
+        <div className="bg-gray-50 p-6 rounded-lg flex flex-col items-center justify-center min-h-[200px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-lg font-medium">Generating professional feedback and saving your review...</p>
+          <p className="text-sm text-gray-500 mt-2">This may take a moment, please wait.</p>
+        </div>
       ) : conversationState === 'complete' ? (
         <div className="space-y-4">
+          {saveStatus === 'success' && (
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+              <p className="font-bold">Success!</p>
+              <p className="text-sm">Your feedback has been saved successfully.</p>
+            </div>
+          )}
+          
+          {saveStatus === 'error' && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              <p className="font-bold">Error</p>
+              <p className="text-sm">There was a problem saving your feedback. The summary is still available below.</p>
+            </div>
+          )}
+          
           <div className="p-4 border rounded-lg bg-green-50">
             <h3 className="font-semibold mb-2">Review Summary</h3>
             <p className="whitespace-pre-line">{reviewSummary}</p>
+          </div>
+          
+          <div className="p-4 border rounded-lg bg-blue-50">
+            <h3 className="font-semibold mb-2">Professional Feedback</h3>
+            <div className="whitespace-pre-line">{professionalFeedback}</div>
           </div>
           
           <h3 className="font-semibold mt-6 mb-2">Conversation History</h3>
@@ -230,10 +315,12 @@ export default function ReviewConversation() {
                 <p className="text-sm text-gray-500">Question {index + 1}:</p>
                 <p>{turn.question}</p>
               </div>
-              <div className="bg-gray-100 p-3 rounded-lg">
-                <p className="text-sm text-gray-500">Your Answer:</p>
-                <p>{turn.answer}</p>
-              </div>
+              {turn.answer && (
+                <div className="bg-gray-100 p-3 rounded-lg">
+                  <p className="text-sm text-gray-500">Your Answer:</p>
+                  <p>{turn.answer}</p>
+                </div>
+              )}
             </div>
           ))}
           
@@ -250,7 +337,7 @@ export default function ReviewConversation() {
             <div className="mb-4">
               <p className="font-medium mb-1">Conversation Status:</p>
               <p className="text-sm">
-                {conversationState === 'conversation' && `Question ${conversationHistory.length} of 5`}
+                {conversationState === 'conversation' && `Questions asked: ${conversationHistory.length}`}
                 {conversationState === 'summarizing' && 'Generating your feedback summary...'}
               </p>
             </div>
@@ -262,20 +349,32 @@ export default function ReviewConversation() {
               </div>
             )}
             
-            <div className="flex justify-center my-6">
-              <button
-                onClick={handleToggleRecording}
-                disabled={isProcessing || isSpeaking}
-                className={`w-20 h-20 rounded-full flex items-center justify-center ${
-                  isRecording
-                    ? 'bg-red-500 animate-pulse'
-                    : isProcessing || isSpeaking
-                    ? 'bg-gray-400'
-                    : 'bg-blue-500'
-                } text-white`}
-              >
-                {isRecording ? 'Stop' : isProcessing ? 'Processing...' : isSpeaking ? 'Listening...' : 'Speak'}
-              </button>
+            <div className="flex flex-col items-center my-6">
+              <div className="flex justify-center mb-4">
+                <button
+                  onClick={handleToggleRecording}
+                  disabled={isProcessing || isSpeaking}
+                  className={`w-20 h-20 rounded-full flex items-center justify-center ${
+                    isRecording
+                      ? 'bg-red-500 animate-pulse'
+                      : isProcessing || isSpeaking
+                      ? 'bg-gray-400'
+                      : 'bg-blue-500'
+                  } text-white`}
+                >
+                  {isRecording ? 'Stop' : isProcessing ? 'Processing...' : isSpeaking ? 'Listening...' : 'Speak'}
+                </button>
+              </div>
+              
+              {conversationState === 'conversation' && conversationHistory.length > 0 && (
+                <button
+                  onClick={handleEndConversation}
+                  disabled={isProcessing || isSpeaking || isRecording}
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors disabled:opacity-50"
+                >
+                  End Conversation & Generate Summary
+                </button>
+              )}
             </div>
             
             {(isRecordingAudio || isSpeaking) && (

@@ -11,6 +11,7 @@
   "dependencies": {
     "@livekit/components-react": "^2.9.3",
     "@livekit/components-styles": "^1.1.5",
+    "@supabase/supabase-js": "^2.49.4",
     "axios": "^1.9.0",
     "livekit-client": "^2.11.4",
     "livekit-server-sdk": "^2.12.0",
