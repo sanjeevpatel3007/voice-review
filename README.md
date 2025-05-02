@@ -1,7 +1,5 @@
-# Speak Flow
 
-A voice-based feedback collection system for cohort participants using Next.js, React, and AI technologies.
-
+A voice-based feedback collection system for cohort participants using 
 ## Features
 
 ### Cohort Review Conversation
@@ -14,7 +12,25 @@ A voice-based feedback collection system for cohort participants using Next.js, 
 - Automatic saving of feedback to Supabase database
 - Complete conversation history for reference
 
-## Technical Implementation
+## Project Architecture
+
+### Component Structure
+The application follows a modular component structure for better maintainability:
+
+- **ReviewConversation**: Main conversation component
+  - `EmailForm`: Handles email collection before starting the conversation
+  - `ConversationInterface`: Manages the active conversation UI
+  - `SavingFeedback`: Displays loading state while saving feedback
+  - `CompletedReview`: Shows the review summary and professional feedback
+
+- **VoiceChat**: Generic voice chat component 
+  - `VoiceChatControls`: Handles the recording button and controls
+  - `VoiceChatSubtitles`: Displays conversation subtitles
+  - `VoiceChatStatus`: Shows the current chat status
+
+- **AudioVisualizer**: Provides visual feedback during recording and playback
+
+### Technical Implementation
 
 - **Frontend**: Next.js with React and TypeScript
 - **Speech Processing**:
@@ -26,6 +42,15 @@ A voice-based feedback collection system for cohort participants using Next.js, 
 - **Database**: Supabase for storing user feedback and emails
 - **Audio Processing**: Web Audio API for microphone access and audio processing
 
+### Custom Hooks
+The application uses several custom React hooks to manage functionality:
+
+- `useMicrophone`: Handles microphone access and recording
+- `useSpeechToText`: Converts recorded audio to text
+- `useTextToSpeech`: Manages text-to-speech functionality
+- `useReviewAI`: Generates AI-powered questions and summaries
+- `useAI`: Generic AI interaction hook for VoiceChat
+
 ## Getting Started
 
 1. Clone the repository
@@ -34,11 +59,8 @@ A voice-based feedback collection system for cohort participants using Next.js, 
    npm install
    ```
 3. Create a `.env.local` file with your API keys:
-   ```
-   NEXT_PUBLIC_OPENAI_API_KEY=your_openai_api_key
-   ```
+   
 4. Set up the Supabase database:
-   - Run the SQL commands in `supabase-table-setup.sql` in your Supabase SQL editor
 5. Run the development server:
    ```
    npm run dev
@@ -58,19 +80,6 @@ A voice-based feedback collection system for cohort participants using Next.js, 
 6. View your personalized feedback summary and professional feedback
 7. Click "Start New Review" to begin another review session
 
-## Database Schema
-
-The application uses a Supabase table with the following structure:
-
-```sql
-CREATE TABLE public.cohort_feedback (
-  id BIGSERIAL PRIMARY KEY,
-  email TEXT NOT NULL,
-  summary TEXT NOT NULL,
-  professional_feedback TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
-```
 
 ## Browser Compatibility
 
@@ -78,6 +87,35 @@ CREATE TABLE public.cohort_feedback (
 - Requires a browser that supports the Web Audio API and SpeechRecognition API
 - Fallback mechanisms are in place for browsers with limited speech recognition support
 
-## License
+## Project Structure
 
-This project is licensed under the MIT License.
+```
+speak-flow/
+├── public/                # Static assets
+├── src/
+│   ├── app/               # Next.js app router
+│   │   └── page.tsx       # Home page
+│   ├── components/        # React components
+│   │   ├── AudioVisualizer.tsx
+│   │   ├── ReviewConversation/
+│   │   │   ├── index.tsx            # Main component
+│   │   │   ├── EmailForm.tsx        # Email collection form
+│   │   │   ├── ConversationInterface.tsx  # Active conversation UI
+│   │   │   ├── SavingFeedback.tsx   # Loading state
+│   │   │   └── CompletedReview.tsx  # Results display
+│   │   └── VoiceChat/
+│   │       ├── index.tsx            # Main voice chat
+│   │       ├── VoiceChatControls.tsx # Recording controls
+│   │       ├── VoiceChatSubtitles.tsx # Conversation display
+│   │       └── VoiceChatStatus.tsx   # Status indicators
+│   ├── hooks/             # Custom React hooks
+│   │   ├── useAI.ts
+│   │   ├── useMicrophone.ts
+│   │   ├── useReviewAI.ts
+│   │   ├── useSpeechToText.ts
+│   │   └── useTextToSpeech.ts
+│   └── lib/               # Utility functions and services
+│       └── supabase.ts    # Supabase client and helpers
+├── package.json          
+└── README.md
+```
