@@ -1,7 +1,5 @@
-# Speak Flow
 
-A voice-based feedback collection system for cohort participants using Next.js, React, and AI technologies.
-
+A voice-based feedback collection system for cohort participants using 
 ## Features
 
 ### Cohort Review Conversation
@@ -61,13 +59,8 @@ The application uses several custom React hooks to manage functionality:
    npm install
    ```
 3. Create a `.env.local` file with your API keys:
-   ```
-   NEXT_PUBLIC_OPENAI_API_KEY=your_openai_api_key
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
+   
 4. Set up the Supabase database:
-   - Run the SQL commands in `supabase-table-setup.sql` in your Supabase SQL editor
 5. Run the development server:
    ```
    npm run dev
@@ -87,20 +80,6 @@ The application uses several custom React hooks to manage functionality:
 6. View your personalized feedback summary and professional feedback
 7. Click "Start New Review" to begin another review session
 
-## Database Schema
-
-The application uses a Supabase table with the following structure:
-
-```sql
-CREATE TABLE public.cohort_feedback (
-  id BIGSERIAL PRIMARY KEY,
-  email TEXT NOT NULL,
-  summary TEXT NOT NULL,
-  professional_feedback TEXT NOT NULL,
-  conversation_history JSONB NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
-```
 
 ## Browser Compatibility
 
@@ -140,7 +119,3 @@ speak-flow/
 ├── package.json          
 └── README.md
 ```
-
-## License
-
-This project is licensed under the MIT License.
